@@ -26,14 +26,22 @@ async function ingestDocuments() {
   // Get or create collection
   let collection;
   try {
-    collection = await client.getOrCreateCollection({
-      name: CHROMA_COLLECTION_NAME,
-    });
-    // Clear existing data
-    await collection.delete();
-    collection = await client.getOrCreateCollection({
-      name: CHROMA_COLLECTION_NAME,
-    });
+    // Try to get existing collection
+    try {
+      collection = await client.getCollection({
+        name: CHROMA_COLLECTION_NAME,
+      });
+      // Clear existing data
+      const existingIds = await collection.get();
+      if (existingIds.ids && existingIds.ids.length > 0) {
+        await collection.delete({ ids: existingIds.ids });
+      }
+    } catch {
+      // Collection doesn't exist, create it
+      collection = await client.createCollection({
+        name: CHROMA_COLLECTION_NAME,
+      });
+    }
   } catch (error) {
     collection = await client.createCollection({
       name: CHROMA_COLLECTION_NAME,
