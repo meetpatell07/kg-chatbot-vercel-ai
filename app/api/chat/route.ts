@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateText, embed } from 'ai';
 import { google } from '@ai-sdk/google';
-import { searchKnowledgeBase } from '@/lib/chroma';
+import { searchKnowledgeBase } from '@/lib/neon-db';
 
 export const maxDuration = 60;
 
@@ -25,8 +25,9 @@ export async function POST(req: NextRequest) {
     // Search knowledge base
     const kbResults = await searchKnowledgeBase(embedding, 3);
 
-    // Determine if we have a good match from KB (threshold: distance < 0.7)
-    const hasGoodMatch = kbResults.length > 0 && kbResults[0].distance < 0.7;
+    // Determine if we have a good match from KB (threshold: distance < 1.0)
+    // Cosine distance: 0 = identical, 2 = opposite, so < 1.0 means similar
+    const hasGoodMatch = kbResults.length > 0 && kbResults[0].distance < 1.0;
     const kbContext = kbResults
       .map((r) => r.content)
       .join('\n\n')

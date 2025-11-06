@@ -1,18 +1,18 @@
-import { ChromaClient } from 'chromadb';
 import { google } from '@ai-sdk/google';
 import { embed } from 'ai';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+import { initializeDatabase, addDocuments, clearDocuments } from '../lib/neon-db';
 
-const CHROMA_COLLECTION_NAME = 'techcorp-faq';
+// Load environment variables
+dotenv.config({ path: path.join(process.cwd(), '.env.local') });
 
 async function ingestDocuments() {
   console.log('Starting document ingestion...');
 
-  // Initialize Chroma client (in-memory for simplicity)
-  const client = new ChromaClient({
-    path: path.join(process.cwd(), '.chroma'),
-  });
+  // Initialize database
+  await initializeDatabase();
 
   // Read the FAQ document
   const faqPath = path.join(process.cwd(), 'data', 'faq.md');
@@ -23,32 +23,10 @@ async function ingestDocuments() {
 
   console.log(`Split document into ${chunks.length} chunks`);
 
-  // Get or create collection
-  let collection;
-  try {
-    // Try to get existing collection
-    try {
-      collection = await client.getCollection({
-        name: CHROMA_COLLECTION_NAME,
-      });
-      // Clear existing data
-      const existingIds = await collection.get();
-      if (existingIds.ids && existingIds.ids.length > 0) {
-        await collection.delete({ ids: existingIds.ids });
-      }
-    } catch {
-      // Collection doesn't exist, create it
-      collection = await client.createCollection({
-        name: CHROMA_COLLECTION_NAME,
-      });
-    }
-  } catch (error) {
-    collection = await client.createCollection({
-      name: CHROMA_COLLECTION_NAME,
-    });
-  }
+  // Clear existing data
+  await clearDocuments();
 
-  // Generate embeddings and add to Chroma
+  // Generate embeddings and add to vector store
   const ids: string[] = [];
   const embeddings: number[][] = [];
   const documents: string[] = [];
@@ -78,15 +56,10 @@ async function ingestDocuments() {
     }
   }
 
-  // Add to Chroma
-  await collection.add({
-    ids,
-    embeddings,
-    documents,
-    metadatas,
-  });
+  // Add to Neon database
+  await addDocuments(ids, embeddings, documents, metadatas);
 
-  console.log(`✅ Successfully ingested ${chunks.length} chunks into Chroma!`);
+  console.log(`✅ Successfully ingested ${chunks.length} chunks into Neon database!`);
 }
 
 function splitDocumentIntoChunks(document: string, chunkSize: number = 500, overlap: number = 50): string[] {

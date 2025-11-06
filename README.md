@@ -1,36 +1,123 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Knowledge-Grounded Chatbot System
 
-## Getting Started
+A functional prototype of a Knowledge-Grounded Chatbot System built with Next.js, Vercel AI SDK, Neon PostgreSQL with pgvector, and Google's Gemini model.
 
-First, run the development server:
+## Features
+
+- **Knowledge Base Only Mode**: Answers questions strictly based on internal documentation
+- **LLM + KB Mode**: Augments knowledge base responses with LLM or falls back to LLM when KB doesn't have the answer
+- **Vector Database**: Uses Neon PostgreSQL with pgvector extension for efficient semantic search
+- **Simple Chat Interface**: Clean, functional UI with toggle switch and source citations
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **AI SDK**: Vercel AI SDK (`ai` package)
+- **LLM Provider**: Google Gemini 2.5 Flash
+- **Embeddings**: Google's `text-embedding-004` model
+- **Vector Database**: Neon PostgreSQL with pgvector extension
+- **Styling**: Tailwind CSS
+
+## Setup Instructions
+
+### 1. Install Dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Set Up Environment Variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Create a `.env.local` file in the root directory:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```env
+GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
+DATABASE_URL=postgresql://neondb_owner:password@host/neondb?sslmode=require
+```
 
-## Learn More
+**Note**: The `DATABASE_URL` should point to your Neon PostgreSQL database with pgvector extension enabled.
 
-To learn more about Next.js, take a look at the following resources:
+### 3. Ingest Documents into Vector Database
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Run the ingestion script to process the FAQ document and create embeddings:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm ingest
+```
 
-## Deploy on Vercel
+This will:
+- Read the FAQ document from `data/faq.md`
+- Split it into chunks
+- Generate embeddings using Google's embedding model
+- Store everything in Neon PostgreSQL database with pgvector
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 4. Start the Development Server
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Usage
+
+### Toggle Modes
+
+- **OFF (Knowledge Base Only)**: The chatbot will only answer questions based on the ingested FAQ document. If it doesn't find relevant information, it will say so.
+- **ON (LLM + KB)**: The chatbot will first try to find answers in the knowledge base. If found, it augments the response with LLM. If not found, it falls back to using the LLM directly.
+
+### Example Questions
+
+Try asking:
+- "What is TechCorp Cloud Services?"
+- "What is your pricing model?"
+- "How secure is your platform?"
+- "What support options are available?"
+- "How do I get started?"
+
+## Project Structure
+
+```
+.
+├── app/
+│   ├── api/
+│   │   └── chat/
+│   │       └── route.ts          # API route for chat endpoint
+│   └── page.tsx                   # Main chat interface
+├── data/
+│   └── faq.md                     # Sample FAQ document
+├── lib/
+│   └── neon-db.ts                 # Neon database utilities
+├── scripts/
+│   └── ingest-documents.ts       # Document ingestion script
+└── data/
+    └── faq.md                      # Sample FAQ document
+```
+
+## How It Works
+
+1. **Document Ingestion**:
+   - The FAQ document is split into semantic chunks
+   - Each chunk is embedded using Google's embedding model
+   - Embeddings are stored in Neon PostgreSQL with pgvector extension
+
+2. **Query Processing**:
+   - User query is embedded using the same model
+   - Vector similarity search (cosine distance) finds the most relevant chunks
+   - Context is retrieved and passed to the LLM
+
+3. **Response Generation**:
+   - **KB Only Mode**: Uses RAG (Retrieval-Augmented Generation) with strict KB context
+   - **LLM + KB Mode**: Augments KB context with LLM knowledge or uses LLM as fallback
+
+## Notes
+
+- The vector database is stored in Neon PostgreSQL (cloud-hosted)
+- Re-run `pnpm ingest` if you update the FAQ document
+- The system uses cosine distance for vector search (0 = identical, 2 = opposite)
+- Distance threshold of 1.0 is used to determine if KB has a good match
+- The pgvector extension must be enabled in your Neon database
+
+## License
+
+MIT

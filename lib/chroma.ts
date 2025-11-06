@@ -12,9 +12,8 @@ export async function getChromaCollection(): Promise<Collection> {
   }
 
   if (!client) {
-    client = new ChromaClient({
-      path: path.join(process.cwd(), '.chroma'),
-    });
+    // Chroma 3.x uses default local storage
+    client = new ChromaClient();
   }
 
   try {
