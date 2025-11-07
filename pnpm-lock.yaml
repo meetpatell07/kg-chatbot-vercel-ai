@@ -26,6 +26,9 @@ importers:
       chromadb:
         specifier: ^3.1.1
         version: 3.1.1
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
       next:
         specifier: 16.0.1
         version: 16.0.1(@babel/core@7.28.5)(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
