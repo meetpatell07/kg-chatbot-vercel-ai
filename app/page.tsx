@@ -180,10 +180,10 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar - Sessions List */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-200">
+      <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-full">
+        <div className="p-4 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">Chat Sessions</h2>
           <button
             onClick={createNewSession}
@@ -192,7 +192,7 @@ export default function Home() {
             + New Chat
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar">
           {sessions.length === 0 ? (
             <div className="p-4 text-center text-gray-500 text-sm">
               No sessions yet. Create a new chat to get started.
@@ -223,9 +223,9 @@ export default function Home() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-full min-w-0">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-4 py-3">
+        <header className="bg-white border-b border-gray-200 px-4 py-3 flex-shrink-0">
           <h1 className="text-xl font-semibold text-gray-900">
             Knowledge-Grounded Chatbot
           </h1>
@@ -235,7 +235,7 @@ export default function Home() {
         </header>
 
         {/* Toggle Switch */}
-        <div className="bg-white border-b border-gray-200 px-4 py-3">
+        <div className="bg-white border-b border-gray-200 px-4 py-3 flex-shrink-0">
           <label className="flex items-center gap-3 cursor-pointer">
             <div className="relative">
               <input
@@ -268,7 +268,7 @@ export default function Home() {
         </div>
 
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4 min-h-0 custom-scrollbar">
           {isLoadingSession ? (
             <div className="text-center text-gray-500 mt-12">
               <p>Loading chat history...</p>
@@ -340,7 +340,7 @@ export default function Home() {
         {/* Input Form */}
         <form
           onSubmit={handleSubmit}
-          className="bg-white border-t border-gray-200 px-4 py-4"
+          className="bg-white border-t border-gray-200 px-4 py-4 flex-shrink-0"
         >
           <div className="flex gap-2">
             <input
@@ -348,7 +348,7 @@ export default function Home() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type your message..."
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-500"
               disabled={isLoading}
             />
             <button
