@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from 'next/server';
 import { generateText, embed } from 'ai';
 import { google } from '@ai-sdk/google';
