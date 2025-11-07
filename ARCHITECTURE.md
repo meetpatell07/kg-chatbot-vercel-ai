@@ -202,13 +202,16 @@ User Query
 IF (hasGoodMatch) {
     // Use RAG with strict KB context
     response = generateText({
-        system: "Answer ONLY from provided context",
-        prompt: KB_Context + User_Question
+        model: google('gemini-2.5-flash'),
+        system: "You are a helpful assistant. Answer questions based ONLY on the provided context from internal documentation. 
+                 If the context doesn't contain enough information to answer the question, say 'I don't have enough information in the knowledge base to answer this question.'
+                 Be concise and accurate.",
+        prompt: `Context from knowledge base:\n\n${kbContext}\n\n\nUser question: ${message}`
     })
     source = "Internal Docs"
 } ELSE {
     // No good match found
-    response = "I don't have enough information in the knowledge base..."
+    response = "I don't have enough information in the knowledge base to answer this question."
     source = "None"
 }
 ```
@@ -226,14 +229,17 @@ IF (hasGoodMatch) {
 IF (hasGoodMatch) {
     // Augment KB context with LLM knowledge
     response = generateText({
-        system: "Use KB context, can supplement with general knowledge",
-        prompt: KB_Context + User_Question
+        model: google('gemini-2.5-flash'),
+        system: "You are a helpful assistant. Use the provided context from internal documentation to answer questions. 
+                 You can also use your general knowledge to provide supplementary information if needed.",
+        prompt: `Context from knowledge base:\n\n${kbContext}\n\n\nUser question: ${message}`
     })
     source = "Internal Docs + LLM"
 } ELSE {
     // Fallback to pure LLM
     response = generateText({
-        prompt: User_Question
+        model: google('gemini-2.5-flash'),
+        prompt: message
     })
     source = "LLM"
 }
