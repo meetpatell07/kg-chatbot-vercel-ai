@@ -43,3 +43,6 @@ next-env.d.ts
 # vector database storage
 .chroma/
 .vector-store/
+
+# prisma
+/lib/generated

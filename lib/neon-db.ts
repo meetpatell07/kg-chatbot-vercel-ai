@@ -1,23 +1,19 @@
-import { neon } from '@neondatabase/serverless';
-
-// Parse connection string
-const connectionString = process.env.DATABASE_URL || 
-  'postgresql://neondb_owner:npg_MRXayem8oG6Z@ep-odd-union-ahyd8s3l-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
-
-const sql = neon(connectionString);
+import { prisma } from './prisma';
 
 // Initialize database schema
 export async function initializeDatabase() {
   try {
-    // Enable pgvector extension
-    await sql`CREATE EXTENSION IF NOT EXISTS vector;`;
+    // Enable pgvector extension using raw SQL
+    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS vector;`;
     
-    // Drop table if exists to recreate with correct schema
-    await sql`DROP TABLE IF EXISTS documents;`;
+    // Drop existing tables if they exist (in correct order due to foreign keys)
+    await prisma.$executeRaw`DROP TABLE IF EXISTS messages CASCADE;`;
+    await prisma.$executeRaw`DROP TABLE IF EXISTS sessions CASCADE;`;
+    await prisma.$executeRaw`DROP TABLE IF EXISTS users CASCADE;`;
+    await prisma.$executeRaw`DROP TABLE IF EXISTS documents CASCADE;`;
     
-    // Create documents table with vector column (using dynamic dimension)
-    // Google text-embedding-004 produces 768-dimensional vectors
-    await sql`
+    // Create documents table with vector column
+    await prisma.$executeRaw`
       CREATE TABLE documents (
         id TEXT PRIMARY KEY,
         content TEXT NOT NULL,
@@ -27,13 +23,50 @@ export async function initializeDatabase() {
       );
     `;
     
-    // Create index for vector similarity search (HNSW is better for production, but ivfflat works too)
-    await sql`
+    // Create users table
+    await prisma.$executeRaw`
+      CREATE TABLE users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email TEXT UNIQUE,
+        name TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `;
+    
+    // Create sessions table
+    await prisma.$executeRaw`
+      CREATE TABLE sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `;
+    
+    // Create messages table
+    await prisma.$executeRaw`
+      CREATE TABLE messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        source TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `;
+    
+    // Create indexes
+    await prisma.$executeRaw`
       CREATE INDEX documents_embedding_idx 
       ON documents 
       USING ivfflat (embedding vector_cosine_ops)
       WITH (lists = 100);
     `;
+    
+    await prisma.$executeRaw`CREATE INDEX messages_session_id_idx ON messages(session_id);`;
+    await prisma.$executeRaw`CREATE INDEX sessions_user_id_idx ON sessions(user_id);`;
     
     console.log('✅ Database initialized successfully');
   } catch (error) {
@@ -50,10 +83,10 @@ export async function addDocuments(
   metadatas: Record<string, any>[]
 ): Promise<void> {
   try {
-    // Delete existing documents
-    await sql`DELETE FROM documents;`;
+    // Delete existing documents using Prisma
+    await prisma.document.deleteMany({});
     
-    // Insert new documents in batches for better performance
+    // Insert new documents in batches
     const batchSize = 10;
     for (let i = 0; i < ids.length; i += batchSize) {
       const batch = ids.slice(i, i + batchSize);
@@ -63,15 +96,15 @@ export async function addDocuments(
         // Convert embedding array to PostgreSQL vector format: [0.1,0.2,0.3]
         const embeddingStr = '[' + embeddings[idx].join(',') + ']';
         
-        await sql`
-          INSERT INTO documents (id, content, embedding, metadata)
-          VALUES (
-            ${ids[idx]}, 
-            ${documents[idx]}, 
-            ${embeddingStr}::vector, 
-            ${JSON.stringify(metadatas[idx] || {})}::jsonb
-          )
-        `;
+        // Use raw SQL for vector insertion since Prisma doesn't support vector type directly
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO documents (id, content, embedding, metadata)
+           VALUES ($1, $2, $3::vector, $4::jsonb)`,
+          ids[idx],
+          documents[idx],
+          embeddingStr,
+          JSON.stringify(metadatas[idx] || {})
+        );
       }
       
       if ((i + batchSize) % 50 === 0) {
@@ -97,20 +130,28 @@ export async function searchKnowledgeBase(
     
     // Use cosine distance (<=>) for similarity search
     // <=> returns cosine distance (0 = identical, 2 = opposite)
-    const results = await sql`
-      SELECT 
+    const results = await prisma.$queryRawUnsafe<
+      Array<{
+        content: string;
+        metadata: any;
+        distance: number;
+      }>
+    >(
+      `SELECT 
         content,
         metadata,
-        embedding <=> ${embeddingStr}::vector as distance
+        embedding <=> $1::vector as distance
       FROM documents
-      ORDER BY embedding <=> ${embeddingStr}::vector
-      LIMIT ${topK}
-    `;
+      ORDER BY embedding <=> $1::vector
+      LIMIT $2`,
+      embeddingStr,
+      topK
+    );
     
-    return results.map((row: any) => ({
+    return results.map((row: { content: string; metadata: any; distance: number | string }) => ({
       content: row.content,
       metadata: row.metadata || {},
-      distance: parseFloat(row.distance) || 1.0, // Cosine distance
+      distance: typeof row.distance === 'number' ? row.distance : parseFloat(String(row.distance)) || 1.0,
     }));
   } catch (error) {
     console.error('Error searching knowledge base:', error);
@@ -121,7 +162,7 @@ export async function searchKnowledgeBase(
 // Clear all documents
 export async function clearDocuments(): Promise<void> {
   try {
-    await sql`DELETE FROM documents;`;
+    await prisma.document.deleteMany({});
     console.log('✅ Cleared all documents');
   } catch (error) {
     console.error('Error clearing documents:', error);
@@ -132,11 +173,12 @@ export async function clearDocuments(): Promise<void> {
 // Get all document IDs
 export async function getDocumentIds(): Promise<string[]> {
   try {
-    const results = await sql`SELECT id FROM documents;`;
-    return results.map((row: any) => row.id);
+    const documents = await prisma.document.findMany({
+      select: { id: true },
+    });
+    return documents.map((doc: { id: string }) => doc.id);
   } catch (error) {
     console.error('Error getting document IDs:', error);
     return [];
   }
 }
-

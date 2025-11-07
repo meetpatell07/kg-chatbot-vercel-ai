@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateText, embed } from 'ai';
 import { google } from '@ai-sdk/google';
-import { searchKnowledgeBase } from '@/lib/neon-db';
+import { searchChromaKnowledgeBase } from '@/lib/chroma-cloud';
 
 export const maxDuration = 60;
 
@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
       value: message,
     });
 
-    // Search knowledge base
-    const kbResults = await searchKnowledgeBase(embedding, 3);
+    // Search knowledge base in Chroma Cloud
+    const kbResults = await searchChromaKnowledgeBase(embedding, 3);
 
     // Determine if we have a good match from KB (threshold: distance < 1.0)
     // Cosine distance: 0 = identical, 2 = opposite, so < 1.0 means similar

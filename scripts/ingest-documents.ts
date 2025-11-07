@@ -3,16 +3,14 @@ import { embed } from 'ai';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
-import { initializeDatabase, addDocuments, clearDocuments } from '../lib/neon-db';
+import { addDocumentsToChroma, clearChromaDocuments } from '../lib/chroma-cloud';
 
 // Load environment variables
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 dotenv.config({ path: path.join(process.cwd(), '.env.local') });
 
 async function ingestDocuments() {
-  console.log('Starting document ingestion...');
-
-  // Initialize database
-  await initializeDatabase();
+  console.log('Starting document ingestion to Chroma Cloud...');
 
   // Read the FAQ document
   const faqPath = path.join(process.cwd(), 'data', 'faq.md');
@@ -23,8 +21,8 @@ async function ingestDocuments() {
 
   console.log(`Split document into ${chunks.length} chunks`);
 
-  // Clear existing data
-  await clearDocuments();
+  // Clear existing data from Chroma Cloud
+  await clearChromaDocuments();
 
   // Generate embeddings and add to vector store
   const ids: string[] = [];
@@ -56,10 +54,10 @@ async function ingestDocuments() {
     }
   }
 
-  // Add to Neon database
-  await addDocuments(ids, embeddings, documents, metadatas);
+  // Add to Chroma Cloud
+  await addDocumentsToChroma(ids, embeddings, documents, metadatas);
 
-  console.log(`✅ Successfully ingested ${chunks.length} chunks into Neon database!`);
+  console.log(`✅ Successfully ingested ${chunks.length} chunks into Chroma Cloud!`);
 }
 
 function splitDocumentIntoChunks(document: string, chunkSize: number = 500, overlap: number = 50): string[] {
