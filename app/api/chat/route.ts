@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateText, embed } from 'ai';
 import { google } from '@ai-sdk/google';
 import { searchChromaKnowledgeBase } from '@/lib/chroma-cloud';
+import { prisma } from '@/lib/prisma';
 
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, useLLM } = await req.json();
+    const { message, useLLM, sessionId } = await req.json();
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json(
@@ -15,6 +16,36 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    if (!sessionId || typeof sessionId !== 'string') {
+      return NextResponse.json(
+        { error: 'Session ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify session exists, create if it doesn't
+    let session = await prisma.session.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      session = await prisma.session.create({
+        data: {
+          id: sessionId,
+          title: 'New Chat',
+        },
+      });
+    }
+
+    // Save user message to database
+    await prisma.message.create({
+      data: {
+        sessionId,
+        role: 'user',
+        content: message,
+      },
+    });
 
     // Generate embedding for the query
     const { embedding } = await embed({
@@ -77,9 +108,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Save assistant message to database
+    const savedMessage = await prisma.message.create({
+      data: {
+        sessionId,
+        role: 'assistant',
+        content: response,
+        source,
+      },
+    });
+
+    // Update session's updatedAt timestamp
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { updatedAt: new Date() },
+    });
+
     return NextResponse.json({
       response,
       source,
+      messageId: savedMessage.id,
+      sessionId,
     });
   } catch (error) {
     console.error('Chat API error:', error);

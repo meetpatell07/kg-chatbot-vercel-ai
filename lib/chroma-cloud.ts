@@ -20,10 +20,25 @@ export async function getChromaCollection() {
   }
 
   try {
-    collection = await client.getOrCreateCollection({
-      name: CHROMA_COLLECTION_NAME,
-    });
-    console.log('✅ Connected to Chroma Cloud collection');
+    // Try to get existing collection first
+    try {
+      collection = await client.getCollection({
+        name: CHROMA_COLLECTION_NAME,
+      });
+      console.log('Connected to existing Chroma Cloud collection');
+    } catch (error) {
+      // Collection doesn't exist, create it
+      // Chroma Cloud requires an embedding function, but we provide our own embeddings
+      // The embedding function won't be used since we always pass embeddings directly
+      const { DefaultEmbeddingFunction } = await import('@chroma-core/default-embed');
+      const embeddingFunction = new DefaultEmbeddingFunction();
+      
+      collection = await client.createCollection({
+        name: CHROMA_COLLECTION_NAME,
+        embeddingFunction: embeddingFunction,
+      });
+      console.log('✅ Created new Chroma Cloud collection');
+    }
   } catch (error) {
     console.error('Error getting Chroma collection:', error);
     throw error;
